@@ -1,0 +1,5 @@
+# Pandoc code for md to html
+
+cd '.\Box Sync\_MF\Studies\DATS 6101\DATS-6101-group-6\literature\'
+
+pandoc literature_review.md -f markdown -t html -s -o literature_review.html

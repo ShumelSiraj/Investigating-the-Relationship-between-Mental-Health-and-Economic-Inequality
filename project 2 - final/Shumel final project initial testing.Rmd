@@ -1,0 +1,479 @@
+---
+title: "Shumel- final project initial testing"
+output: html_document
+---
+---
+title: "Investigating the Relationship between Mental Health and Income Inequality"
+author: "Team 6: Mark Febrizio, Shumel Siraj, Alex Thiersch, Xuan Zou"
+#date: "3/28/2022"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    number_sections: false
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+```{r init, include=F}
+
+# Import libraries
+library(ezids)
+library(dplyr)
+library(data.table)
+library(readr)
+library(lattice)
+library(corrplot)
+library(psych)
+library(kableExtra)
+library(ggpubr)
+
+```
+
+```{r setup, include=FALSE}
+
+# knitr::opts_chunk$set(warning = F, results = "markup", message = F)
+knitr::opts_chunk$set(warning = F, results = "hide", message = F, echo = TRUE)
+options(scientific=T, digits = 3) 
+# options(scipen=9, digits = 3) 
+# ‘scipen’: integer. A penalty to be applied when deciding to print numeric values in fixed or exponential notation.  Positive values bias towards fixed and negative towards scientific notation: fixed notation will be preferred unless it is more than ‘scipen’ digits wider.
+# use scipen=999 to prevent scientific notation at all times
+
+```
+## Summary
+
+The variables in the dataset are:
+
+* `region`: name of the US Census Bureau region (name)
+* `division`: name of the US Census Bureau division (contained with a census region)
+* `state`: state abbreviation
+* `statecode`: FIPS state code
+* `countycode`: FIPS county code
+* `fipscode`: 5-digit FIPS Code (county-level); combines `statecode` and `countycode`
+* `county`: county name
+* `year`: report release year from [County Health Rankings](https://www.countyhealthrankings.org/); range of 2016-2021
+* `county_ranked`: Indicates whether or not the county was ranked; 0=unranked, 1=ranked, or NA for aggregated national or state-level data
+* `mental_health_days`: Average number of mentally unhealthy days reported in past 30 days (age-adjusted)
+* `mental_distress_rate`: Percentage of adults reporting 14 or more days of poor mental health per month
+* `inequality`: Ratio of household income at the 80th percentile to income at the 20th percentile (Income inequality)
+* `median_inc`: The income where half of households in a county earn more and half of households earn less
+* `hs_grad`: Percentage of adults ages 25 and over with a high school diploma or equivalent
+* `college`: Percentage of adults ages 25-44 with some post-secondary education
+* `unempl`: Percentage of population ages 16 and older unemployed but seeking work
+* `child_poverty`: Percentage of people under age 18 in poverty
+* `single_parent`: Percentage of children that live in a household headed by single parent
+* `severe_housing`: Percentage of households with severe housing problems
+* `food_index`: Index of factors that contribute to a healthy food environment, from 0 (worst) to 10 (best)
+* `mh_providers`: rate of providers to 100,000 population
+* `pop_provider_ratio`: ratio of population to mental health providers (i.e., population served per provider)
+* `pop`: census population estimate
+* `pct_below18`: percent of population younger than 18
+* `pct_black`: percent of population that are African-American or non-Hispanic Black
+* `pct_native_am`: percent of population that are Native American or Alaska Natives
+* `pct_asian`: percent of population that are Asian
+* `pct_pacific`: percent of population that are Native Hawaiian or Other Pacific Islander
+* `pct_hispanic`: percent of population that are Hispanic
+* `pct_white`: percent of population that are non-Hispanic white or Caucasian
+* `pct_female`: percent of population that are female
+* `pct_rural`: percent of population that live in rural areas
+
+For more information, see [the measures online](https://www.countyhealthrankings.org/explore-health-rankings/measures-data-sources/2021-measures).
+
+```{r base_lib}
+loadPkg("ggplot2")
+```
+
+## Initialize
+
+```{r}
+dframe <- data.frame(read.csv("analytic_data_2016_2021_with_regions.csv")) 
+head(dframe)
+summary(dframe)
+```  
+
+```{r summary, results='hide'}
+
+# look at county_ranked var; not all counties are ranked; also some aggregated data per state and country exist in the observations
+# =1 means they are ranked, =0 means unranked, and =NA is for state/national data
+#print(summary(dframe$county_ranked))
+
+# subset of dataframe including only ranked counties
+ranked <- dframe %>% subset(county_ranked==1)
+
+# subset of dataframe including only ranked counties
+unranked <- dframe %>% subset(county_ranked==0)
+
+# subset of dataframe including only aggregated data
+aggregated <- dframe %>% subset(is.na(county_ranked))
+
+# duplicate column and rename level labels for easier reading
+ranked$region_abb <- ranked$region
+levels(ranked$region_abb) <- c("", 
+                              "MW",  # re-level factor labels
+                              "NE",
+                              "S", 
+                              "W")
+
+# subset ranked data by region
+ranked_MW <- ranked %>% subset(region=="Midwest")
+ranked_NE <- ranked %>% subset(region=="Northeast")
+ranked_SO <- ranked %>% subset(region=="South")
+ranked_WE <- ranked %>% subset(region=="West")
+
+# subset ranked data into annual datasets
+ranked16 <- ranked %>% subset(year==2016)
+ranked17 <- ranked %>% subset(year==2017)
+ranked18 <- ranked %>% subset(year==2018)
+ranked19 <- ranked %>% subset(year==2019)
+ranked20 <- ranked %>% subset(year==2020)
+ranked21 <- ranked %>% subset(year==2021)
+
+# view size of annual datasets
+df_annual_list <- list(ranked16, ranked17, ranked18, ranked19, ranked20, ranked21)
+for (df in df_annual_list) {
+  print(paste("Observations in", median(df$year), "data: ", nrow(df)))
+  
+}
+
+# sort dataframe
+ranked <- ranked[order(ranked$year, ranked$region, ranked$division, ranked$statecode, ranked$countycode), ]
+
+# view head and tail of ranked data
+xkabledplyhead(ranked, 2, title = "Table: First 2 Rows of Ranked Data")
+xkabledplytail(ranked, 2, title = "Table: Last 2 Rows of Ranked Data")
+```
+
+
+# Correlation Matrices for numeric data
+```{r corr, results='markup'}
+
+
+
+ranked_numeric <- subset(ranked, select = c("mental_health_days", "mental_distress_rate", "inequality", "median_inc", "hs_grad", "college", "unempl", "child_poverty","single_parent", "severe_housing", "food_index","mh_providers","pop_provider_ratio"))
+
+#pairs(ranked_numeric)
+
+a <- as.matrix(ranked_numeric)
+
+b <- cor(a, use = "na.or.complete")
+
+#corr_numbers <- corrplot(b, is.corr=TRUE, method="number", title="Correlation Matrix for Numeric Vars.",mar=c(0,0,1,0))
+
+corr_numbers <- corrplot(b, is.corr=TRUE, title="Correlation Matrix for Numeric Vars.",mar=c(0,0,1,0))
+
+```
+#Feature Selection
+
+```{r}
+loadPkg("ISLR")
+str(ranked)
+summary(ranked)
+```
+One thing we can do right away is to clean up the data a little. Remove variables that we know for sure are useless.
+In our case, let us remove some cumulative player stats to make the dataframe more manageable.
+
+```{r}
+#rankedfsf = ranked[ -c(1:9) ] # cleaned datasetnndf <- nndf1[c(1:23)]
+rankedfs = ranked [c(10:33)] 
+head(rankedfs)
+```
+
+
+
+
+#Details
+Since this function returns separate best models of all sizes up to nvmax and since different model
+selection criteria such as AIC, BIC, CIC, DIC, ... differ only in how models of different sizes are
+compared, the results do not depend on the choice of cost-complexity tradeoff.
+When x is a biglm object it is assumed to be the full model, so force.out is not relevant. If there
+is an intercept it is forced in by default; specify a force.in as a logical vector with FALSE as the
+first element to allow the intercept to be dropped.
+The model search does not actually fit each model, so the returned object does not contain coefficients or standard errors. Coefficients and the variance-covariance matrix for one or model models
+can be obtained with the coef and vcov methods.
+
+## mental health days (target variable)
+#1.Perform Linear Regression with All Predictors
+```{r}
+#Before selecting the best subset of predictors for our regression, let’s run a simple linear regression on our dataset with all predictors to set the base adjusted r² for comparison. for mental health days.
+
+lm1 <- lm(rankedfs,formula=mental_health_days ~. -mental_distress_rate)
+summary(lm1)
+
+```
+
+#which all feature selection methods we can perform:
+```{r}
+library(ISLR)
+library(leaps)
+rankedfs <- na.omit(rankedfs)
+regfit.full = regsubsets(mental_health_days ~.-mental_distress_rate,rankedfs, nvmax=23)
+reg.summary <- summary(regfit.full)
+names(reg.summary)
+```
+
+#Feature Selection: mental_health_days
+```{r}
+library(leaps)
+reg.best10 <- regsubsets(mental_health_days~. - mental_distress_rate , data = rankedfs, nvmax = NULL, nbest = 1, method = "exhaustive")
+                             
+reg.best10                   
+```
+
+```{r}
+summary.out <- summary(reg.best10)
+as.data.frame(summary.out$outmat)
+```
+#Best model at each variable number
+
+#The best model in the 10-variable case includes all variables, as that is the only way to have 10 variables.
+
+```{r}
+plot(reg.best10, scale = "adjr2", main = "Adjusted R^2")
+plot(reg.best10, scale = "r2", main = "R^2")
+plot(reg.best10, scale = "bic", main = "BIC")
+plot(reg.best10, scale = "Cp", main = "Cp")
+coef(reg.best10, 10, scale = "adjr2") # default BIC
+```
+#1.Perform Linear Regression with selected variables after feature selection
+```{r}
+lm2 <- lm(rankedfs,formula=mental_health_days ~ child_poverty + inequality + unempl + college + mh_providers + pop_provider_ratio + unempl + single_parent + region_abb + pct_hispanic + pct_female)
+summary(lm2)
+
+```
+#Plot Output from regsubsets Function in leaps package
+
+#This is just another way of presenting the same information for adjusted \( R^2 \). 
+#Mallow Cp is used to decide on the number of predictors to include. The stopping rule is to start with the smallest model and gradually increase number of variables, and stop when Mallow Cp is approximately (number of regressors + 1, broken line) for the first time.
+```{r}
+library(car)
+library(carData)
+res.legend <-
+    subsets(regsubsets(mental_health_days~.-mental_distress_rate , data = rankedfs, nvmax = 10, nbest = 1, method = "exhaustive"), statistic="adjr2", legend = FALSE, min.size = 5, main = "Adjusted R^2")
+## Mallow Cp
+res.legend <-
+    subsets(regsubsets(mental_health_days~.-mental_distress_rate , data = rankedfs, nvmax = 10, nbest = 1, method = "exhaustive"), statistic="cp", legend = FALSE, min.size = 5, main = "Mallow Cp")
+abline(a = 1, b = 1, lty = 2)
+#BIC
+res.legend <-
+    subsets(regsubsets(mental_health_days~.-mental_distress_rate , data = rankedfs, nvmax = 10, nbest = 1, method = "exhaustive"), statistic="bic", legend = FALSE, min.size = 5, main = "BIC")
+abline(a = 1, b = 1, lty = 2)
+#r2
+res.legend <-
+    subsets(regsubsets(mental_health_days~.-mental_distress_rate , data = rankedfs, nvmax = 10, nbest = 1, method = "exhaustive"), statistic="rsq", legend = FALSE, min.size = 5, main = "R square")
+abline(a = 1, b = 1, lty = 2)
+
+
+
+res.legend
+```
+#See which model has the highest R Square :
+
+```{r}
+which.max(summary.out$rsq)
+```
+
+#The model with 24 variables has the highest RSquare. Variables marked with TRUE are the ones chosen.
+
+```{r}
+plot(summary.out$adjr2,xlab="number of variables", ylab="R Square", type="l")
+points(24, summary.out$rsq[24], col='red', cex=2, pch=20)
+```
+
+#See which model has the highest adjusted R2 :
+
+```{r}
+which.max(summary.out$adjr2)
+```
+
+#The model with 24 variables has the highest adjusted \( R^2 \). Variables marked with TRUE are the ones chosen.
+
+```{r}
+plot(summary.out$adjr2,xlab="number of variables", ylab="adjr2", type="l")
+points(24, summary.out$adjr2[24], col='red', cex=2, pch=20)
+```
+
+#See which model has the lowest CP :
+
+```{r}
+which.min(summary.out$cp)
+```
+#The model with 24 variables has the lowest CP.
+
+```{r}
+plot(summary.out$cp,xlab="number of variables", ylab="cp", type="l")
+points(24, summary.out$cp[24], col='red', cex=2, pch=20)
+```
+
+#See which model has the lowest BIC :
+
+```{r}
+which.min(summary.out$bic)
+```
+
+#The model with 24 variables has the lowest CP.
+
+```{r}
+plot(summary.out$bic,xlab="number of variables", ylab="BIC", type="l")
+points(24, summary.out$bic[24], col='red', cex=2, pch=20)
+#forward and backward selection is same as exhaustive just slight different in forward it start will no variable and iterate till the max variable and backward selection is otherway around.
+```
+
+```{r}
+#validation
+set.seed(1)
+train=sample(c(TRUE, FALSE), nrow(rankedfs), rep=T)
+test = (!train)
+regfit.best=regsubsets(mental_health_days~.-mental_distress_rate,data=rankedfs[train,],nvmax = 23)
+test.mat = model.matrix(mental_health_days~.-mental_distress_rate, data = rankedfs[test,])
+val.errors = rep(NA, 23)
+for(i in 1:23){
+  coefi = coef(regfit.best, id=i)
+   pred = test.mat[,names(coefi)]%*%coefi
+   val.errors[i]= mean((rankedfs$mental_health_days[test]-pred)^2)
+   }
+val.errors
+which.min(val.errors)
+coef(regfit.best,23)
+```
+## mental distress rate (target variable)
+#1.Perform Linear Regression with All Predictors
+
+```{r}
+
+#Before selecting the best subset of predictors for our regression, let’s run a simple linear regression on our dataset with all predictors to set the base adjusted r² for comparison for mental health distress rate.
+
+lm3 <- lm(rankedfs,formula=mental_distress_rate ~. -mental_health_days )
+summary(lm3)
+
+```
+
+#feature selection(mental distress rate)
+```{r}
+library(leaps)
+reg2.best10 <- regsubsets(mental_distress_rate~. -mental_health_days, data = rankedfs, nvmax = NULL, nbest = 1, method = "exhaustive")
+                             
+reg2.best10                   
+```
+```{r}
+summary2.out <- summary(reg2.best10)
+as.data.frame(summary2.out$outmat)
+```
+
+```{r}
+plot(reg2.best10, scale = "adjr2", main = "Adjusted R^2")
+plot(reg2.best10, scale = "r2", main = "R^2")
+plot(reg2.best10, scale = "bic", main = "BIC")
+plot(reg2.best10, scale = "Cp", main = "Cp")
+coef(reg2.best10, 10, scale = "adjr2") # default BIC
+```
+#1.Perform Linear Regression with selected variables after feature selection
+```{r}
+lm4 <- lm(rankedfs,formula=mental_distress_rate ~  inequality + college + mh_providers + pct_female + child_poverty  + unempl + single_parent + region_abb + pct_hispanic + pct_native_am)
+summary(lm4)
+
+```
+#Plot Output from regsubsets Function in leaps package
+
+#This is just another way of presenting the same information for adjusted \( R^2 \). 
+#Mallow Cp is used to decide on the number of predictors to include. The stopping rule is to start with the smallest model and gradually increase number of variables, and stop when Mallow Cp is approximately (number of regressors + 1, broken line) for the first time.
+```{r}
+library(car)
+library(carData)
+res.legend <-
+    subsets(regsubsets(mental_distress_rate~. -mental_health_days , data = rankedfs, nvmax = 10, nbest = 1, method = "exhaustive"), statistic="adjr2", legend = FALSE, min.size = 5, main = "Adjusted R^2")
+## Mallow Cp
+res.legend <-
+    subsets(regsubsets(mental_distress_rate~. -mental_health_days, data = rankedfs, nvmax = 10, nbest = 1, method = "exhaustive"), statistic="cp", legend = FALSE, min.size = 5, main = "Mallow Cp")
+abline(a = 1, b = 1, lty = 2)
+#BIC
+res.legend <-
+    subsets(regsubsets(mental_distress_rate~. -mental_health_days , data = rankedfs, nvmax = 10, nbest = 1, method = "exhaustive"), statistic="bic", legend = FALSE, min.size = 5, main = "BIC")
+abline(a = 1, b = 1, lty = 2)
+#r2
+res.legend <-
+    subsets(regsubsets(mental_distress_rate~.-mental_health_days , data = rankedfs, nvmax = 10, nbest = 1, method = "exhaustive"), statistic="rsq", legend = FALSE, min.size = 5, main = "R square")
+abline(a = 1, b = 1, lty = 2)
+
+
+
+res.legend
+```
+
+#See which model has the highest R Square :
+
+```{r}
+which.max(summary2.out$rsq)
+```
+
+#The model with 24 variables has the highest RSquare. Variables marked with TRUE are the ones chosen.
+
+```{r}
+plot(summary2.out$adjr2,xlab="number of variables", ylab="R Square", type="l")
+points(24, summary2.out$rsq[24], col='red', cex=2, pch=20)
+```
+
+#See which model has the highest adjusted R2 :
+
+```{r}
+which.max(summary2.out$adjr2)
+```
+
+#The model with 24 variables has the highest adjusted \( R^2 \). Variables marked with TRUE are the ones chosen.
+
+```{r}
+plot(summary2.out$adjr2,xlab="number of variables", ylab="adjr2", type="l")
+points(24, summary2.out$adjr2[24], col='red', cex=2, pch=20)
+```
+
+#See which model has the lowest CP :
+
+```{r}
+which.min(summary2.out$cp)
+```
+#The model with 24 variables has the lowest CP.
+
+```{r}
+plot(summary2.out$cp,xlab="number of variables", ylab="cp", type="l")
+points(24, summary2.out$cp[24], col='red', cex=2, pch=20)
+```
+
+#See which model has the lowest BIC :
+
+```{r}
+which.min(summary2.out$bic)
+```
+
+#The model with 21  variables has the lowest CP.
+
+```{r}
+plot(summary2.out$bic,xlab="number of variables", ylab="BIC", type="l")
+points(21, summary2.out$bic[21], col='red', cex=2, pch=20)
+#forward and backward selection is same as exhaustive just slight different in forward it start will no variable and iterate till the max variable and backward selection is otherway around.
+```
+```{r}
+#validation
+set.seed(1)
+train=sample(c(TRUE, FALSE), nrow(rankedfs), rep=T)
+test = (!train)
+regfit.best=regsubsets(mental_distress_rate~.-mental_health_days,data=rankedfs[train,],nvmax = 23)
+test.mat = model.matrix(mental_distress_rate~.-mental_health_days, data = rankedfs[test,])
+val.errors = rep(NA, 23)
+for(i in 1:23){
+  coefi = coef(regfit.best, id=i)
+   pred = test.mat[,names(coefi)]%*%coefi
+   val.errors[i]= mean((rankedfs$mental_health_days[test]-pred)^2)
+   }
+val.errors
+which.min(val.errors)
+coef(regfit.best,23)
+```
+```{r anova_lm}
+
+anovaRes_mental_health_days <- anova(lm1,lm2)
+anovaRes_mental_distress_rate <- anova(lm3,lm4)
+
+xkabledply(anovaRes_mental_health_days, title = "ANOVA comparison between two linear models for mental health days : lm1 and lm2")
+xkabledply(anovaRes_mental_distress_rate, title = "ANOVA comparison between two linear models for mental distress rate : lm3 and lm4")
+
+```

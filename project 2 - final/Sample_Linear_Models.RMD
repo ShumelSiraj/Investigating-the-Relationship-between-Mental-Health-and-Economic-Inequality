@@ -1,0 +1,123 @@
+#Here are my sample linea models. The dataframe needs to be changed on them to the regional datasets that mark created. i.e. using the "ranked" dataframe.
+
+
+
+```{r corr, results='markup', eval=F}
+library(Hmisc)
+
+#Correlation Matrices per Year
+
+#2016 Correlation Plot
+dframe2016_1<-subset(dframe2016, select = c("mental_health_days", "mental_distress_rate", "inequality", "median_inc", "hs_grad", "college", "unempl", "child_poverty","single_parent", "severe_housing", "food_index","mh_providers","pop_provider_ratio"))
+
+pairs(dframe2016_1)
+a<-as.matrix(dframe2016_1)
+b<-cor(a)
+corrplot(b, is.corr=TRUE, method="number", title="2016 Correlation Matrix for All Numeric Vars.",mar=c(0,0,1,0))
+
+
+#2017 Correlation Plot
+dframe2017_1<-subset(dframe2017, select = c("mental_health_days", "mental_distress_rate", "inequality", "median_inc", "hs_grad", "college", "unempl", "child_poverty","single_parent", "severe_housing", "food_index","mh_providers","pop_provider_ratio"))
+
+pairs(dframe2017_1)
+a<-as.matrix(dframe2017_1)
+b<-cor(a)
+corrplot(b, is.corr=TRUE, method="number", title="2017 Correlation Matrix for All Numeric Vars.",mar=c(0,0,1,0))
+
+#2018 Correlation Plot
+dframe2018_1<-subset(dframe2018, select = c("mental_health_days", "mental_distress_rate", "inequality", "median_inc", "hs_grad", "college", "unempl", "child_poverty","single_parent", "severe_housing", "food_index","mh_providers","pop_provider_ratio"))
+
+pairs(dframe2018_1)
+a<-as.matrix(dframe2018_1)
+b<-cor(a)
+corrplot(b, is.corr=TRUE, method="number",title="2018 Correlation Matrix for All Numeric Vars.", mar=c(0,0,1,0))
+
+#2019 Correlation Plot
+dframe2019_1<-subset(dframe2019, select = c("mental_health_days", "mental_distress_rate", "inequality", "median_inc", "hs_grad", "college", "unempl", "child_poverty","single_parent", "severe_housing", "food_index","mh_providers","pop_provider_ratio"))
+
+pairs(dframe2019_1)
+a<-as.matrix(dframe2019_1)
+b<-cor(a)
+corrplot(b, is.corr=TRUE, method="number",title="2019 Correlation Matrix for All Numeric Vars.", mar=c(0,0,1,0))
+
+#2020 Correlation Plot
+dframe2020_1<-subset(dframe2020, select = c("mental_health_days", "mental_distress_rate", "inequality", "median_inc", "hs_grad", "college", "unempl", "child_poverty","single_parent", "severe_housing", "food_index","mh_providers","pop_provider_ratio"))
+
+pairs(dframe2020_1)
+a<-as.matrix(dframe2020_1)
+b<-cor(a)
+corrplot(b, is.corr=TRUE, method="number",title="2020 Correlation Matrix for All Numeric Vars.", mar=c(0,0,1,0))
+
+#2021 Correlation Plot
+dframe2020_1<-subset(dframe2021, select = c("mental_health_days", "mental_distress_rate", "inequality", "median_inc", "hs_grad", "college", "unempl", "child_poverty","single_parent", "severe_housing", "food_index","mh_providers","pop_provider_ratio"))
+
+pairs(dframe2021_1)
+a<-as.matrix(dframe2021_1)
+b<-cor(a)
+corrplot(b, is.corr=TRUE, method="number",title="2021 Correlation Matrix for All Numeric Vars.", mar=c(0,0,1,0))
+
+```
+
+
+
+```{r}
+library(broom)
+
+#Linear Models
+
+#Linear Models for Mental Health Days (2016-2021)
+lm_model_1 <- lm(mental_health_days~child_poverty, data=dframe)
+summary(lm_model_1)
+
+lm_model_2 <- lm(mental_health_days~child_poverty+median_inc+inequality+unempl+single_parent+severe_housing+food_index+mh_providers+pop_provider_ratio, data=dframe)
+summary(lm_model_2)
+
+#Linear Models for Mental Distress Rate (2016-2021)
+lm_model_3 <- lm(mental_distress_rate~child_poverty, data=dframe)
+summary(lm_model_3)
+
+lm_model_4 <- lm(mental_distress_rate~child_poverty+median_inc+inequality+unempl+single_parent+severe_housing+food_index+mh_providers+pop_provider_ratio, data=dframe)
+summary(lm_model_4)
+
+#aov
+
+#aov: Linear Models for Mental Health Days (2016-2021)
+aov1 <- aov(lm_model_1)
+
+table3<-(tidy(aov1))
+table3 %>%
+  kbl(caption="ANOVA Test for Model 1: lm(mental_health_days~child_poverty)",
+       format= "html", col.names = c(" ","Df", "Sum Sq", "Mean Sq", "F Value", "Pr(>r)"), 
+       align="r") %>% 
+  kable_classic_2(full_width = F, html_font = "helvetica")
+
+
+aov2 <- aov(lm_model_2)
+table4<-(tidy(aov2))
+table4 %>%
+  kbl(caption="ANOVA Test for Model 2: lm(mental_health_days~child_poverty+median_inc+...+pop_provider_ratio)",
+       format= "html", col.names = c(" ","Df", "Sum Sq", "Mean Sq", "F Value", "Pr(>r)"), 
+       align="r") %>% 
+  kable_classic_2(full_width = F, html_font = "helvetica")
+
+
+#aov: Linear Models for Mental Health Days (2016-2021)
+aov3 <- aov(lm_model_3)
+
+table5<-(tidy(aov3))
+table5 %>%
+  kbl(caption="ANOVA Test for Model 3: lm(mental_distress_rate~child_poverty)",
+       format= "html", col.names = c(" ","Df", "Sum Sq", "Mean Sq", "F Value", "Pr(>r)"), 
+       align="r") %>% 
+  kable_classic_2(full_width = F, html_font = "helvetica")
+
+
+aov4 <- aov(lm_model_4)
+
+table6<-(tidy(aov4))
+table6 %>%
+  kbl(caption="ANOVA Test for Model 4: lm(mental_distress_rate~child_poverty+median_inc+...+pop_provider_ratio)",
+       format= "html", col.names = c(" ","Df", "Sum Sq", "Mean Sq", "F Value", "Pr(>r)"), 
+       align="r") %>% 
+  kable_classic_2(full_width = F, html_font = "helvetica")
+
